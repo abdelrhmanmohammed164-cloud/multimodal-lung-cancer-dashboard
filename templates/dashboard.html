@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+{% block content %}
+
+    <!-- ===================== EXECUTIVE LANDING SUMMARY ===================== -->
+    <section class="dashboard-executive-strip" aria-label="Project summary">
+      <div class="executive-metric">
+        <span class="executive-metric-icon">&#128101;</span>
+        <div><span class="executive-metric-label">Dataset</span><strong>{{ dashboard_dataset_n if dashboard_dataset_n else '1,638' }} Patients</strong></div>
+      </div>
+      <div class="executive-metric">
+        <span class="executive-metric-icon">&#129504;</span>
+        <div><span class="executive-metric-label">AI Branches</span><strong>{{ dashboard_total_models }} Individual Models</strong></div>
+      </div>
+      <div class="executive-metric {{ 'is-ready' if dashboard_ready_models == dashboard_total_models else 'is-partial' }}">
+        <span class="executive-metric-icon">&#9679;</span>
+        <div><span class="executive-metric-label">Model Readiness</span><strong>{{ dashboard_ready_models }} / {{ dashboard_total_models }} Ready</strong></div>
+      </div>
+      <div class="executive-metric executive-metric-fusion">
+        <span class="executive-metric-icon">&#10022;</span>
+        <div><span class="executive-metric-label">Final Decision</span><strong>Fusion Model</strong><small>Threshold {{ '%.4f'|format(dashboard_active_threshold) }}</small></div>
+      </div>
+    </section>
+
+    <section class="card patient-bar">
+      <div class="patient-field">
+        <label>Patient ID</label>
+        <div class="inline-two">
+          <input type="text" id="patientId" placeholder="P-2025-000123">
+          <button class="btn btn-outline" id="loadDraftBtn" title="Load a previously saved clinical draft for this Patient ID" style="padding:7px 10px; font-size:11px;">Load</button>
+        </div>
+      </div>
+      <div class="patient-field">
+        <label>Patient Name</label>
+        <input type="text" id="patientName" placeholder="Full name">
+      </div>
+      <div class="patient-field">
+        <label>Age / Gender</label>
+        <div class="inline-two">
+          <input type="number" id="quickAge" placeholder="Age" style="width:70px">
+          <select id="quickGender"><option value="0">Male</option><option value="1">Female</option></select>
+        </div>
+      </div>
+      <div class="patient-field">
+        <label>Study Date</label>
+        <input type="text" value="{{ dashboard_current_date }}" disabled>
+      </div>
+      <button class="btn btn-outline" id="newPatientBtn">+ New Patient</button>
+    </section>
+
+    <section class="analysis-workflow" id="analysisWorkflow" aria-label="Analysis workflow">
+      <div class="workflow-head">
+        <span>Analysis Workflow</span>
+        <span class="workflow-state" id="workflowState">Ready</span>
+      </div>
+      <div class="workflow-steps">
+        <div class="workflow-step" data-workflow-step="clinical"><span class="workflow-dot"></span><span>Clinical</span></div>
+        <div class="workflow-connector"></div>
+        <div class="workflow-step" data-workflow-step="2d"><span class="workflow-dot"></span><span>2D CT</span></div>
+        <div class="workflow-connector"></div>
+        <div class="workflow-step" data-workflow-step="3d"><span class="workflow-dot"></span><span>3D MIL</span></div>
+        <div class="workflow-connector"></div>
+        <div class="workflow-step" data-workflow-step="wholelung"><span class="workflow-dot"></span><span>Whole Lung</span></div>
+        <div class="workflow-connector"></div>
+        <div class="workflow-step workflow-step-fusion" data-workflow-step="fusion"><span class="workflow-dot"></span><span>Fusion</span></div>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <!-- ===================== CLINICAL DATA ===================== -->
+      <section class="card">
+        <div class="card-head">
+          <div class="icon-badge pink">&#128203;</div>
+          <div>
+            <h3>1. CLINICAL DATA</h3>
+            <p class="card-sub">Enter patient clinical information ({{ quick_fields|length + other_groups|map(attribute='fields')|map('length')|sum }} validated features)</p>
+          </div>
+        </div>
+
+        <div class="quick-grid">
+          {% for f in quick_fields %}
+          <div class="field">
+            <label>{{ f.replace('_',' ')|title }}</label>
+            {% if f == 'gender' %}
+              <select data-field="{{ f }}"><option value="0">Male</option><option value="1">Female</option></select>
+            {% elif f == 'cigsmok' %}
+              <select data-field="{{ f }}"><option value="1">Yes</option><option value="0">No</option></select>
+            {% else %}
+              <input type="number" data-field="{{ f }}" value="0">
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+
+        <details class="more-details">
+          <summary>More clinical details ({{ other_groups|map(attribute='fields')|map('length')|sum }} additional fields, from radiologist reading)</summary>
+          {% for group in other_groups %}
+          <div class="field-group">
+            <div class="field-group-title">{{ group.name }}</div>
+            <div class="field-group-grid">
+              {% for field in group.fields %}
+              <div class="field small">
+                <label title="{{ field.desc }}">{{ field.name }}</label>
+                <input type="number" data-field="{{ field.name }}" value="0" step="{{ '1' if field.is_flag else 'any' }}" title="{{ field.desc }} ({{ field.expected }})">
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </details>
+
+        <button class="btn btn-primary" id="saveClinicalBtn">&#128190; Save Clinical Data</button>
+      </section>
+
+      <!-- ===================== CT UPLOAD ===================== -->
+      <section class="card">
+        <div class="card-head">
+          <div class="icon-badge blue">&#129502;</div>
+          <div>
+            <h3>2. CT IMAGE UPLOAD</h3>
+            <p class="card-sub">Upload patient CT scan (DICOM files)</p>
+          </div>
+        </div>
+
+        <div class="upload-preview-row">
+          <div class="dropzone" id="dropzone">
+            <div class="dropzone-icon">&#9729;&#65039;&#8593;</div>
+            <div class="dropzone-title">Drag &amp; Drop CT Images</div>
+            <div class="dropzone-or">or</div>
+            <button class="btn btn-primary" id="browseBtn">Browse Patient Folder</button>
+            <div class="dropzone-hint">Supports DICOM (.dcm) — select the patient's whole scan folder</div>
+            <input type="file" id="fileInput" webkitdirectory directory multiple style="display:none">
+            <div class="upload-status" id="uploadStatus"></div>
+          </div>
+
+          <div class="preview-box">
+            <div class="preview-label">Preview (Axial View)</div>
+            <div class="preview-frame" id="previewFrame">
+              <span class="preview-placeholder">No scan yet</span>
+            </div>
+            <div class="preview-nav" id="previewNav" style="display:none;">
+              <button class="preview-nav-btn" id="prevSliceBtn">&#8249;</button>
+              <span class="preview-nav-label" id="previewSliceLabel">1 / 5</span>
+              <button class="preview-nav-btn" id="nextSliceBtn">&#8250;</button>
+            </div>
+            <a class="view-slices-link" id="viewSlicesLink">&#9638; View All Slices</a>
+          </div>
+        </div>
+
+        <div class="ct-study-info" id="ctStudyInfo" style="display:none;" aria-label="CT study information">
+          <div class="ct-study-info-head">
+            <span class="ct-study-loaded">&#10003; Study loaded</span>
+            <span id="ctStudySeriesLabel">Selected CT series</span>
+          </div>
+          <div class="ct-study-info-grid">
+            <div><span>Files received</span><strong id="ctFilesReceived">—</strong></div>
+            <div><span>Series slices</span><strong id="ctSeriesSlices">—</strong></div>
+            <div><span>Modality</span><strong id="ctModality">—</strong></div>
+            <div><span>Slice thickness</span><strong id="ctSliceThickness">—</strong></div>
+            <div><span>Pixel spacing</span><strong id="ctPixelSpacing">—</strong></div>
+            <div><span>Study date</span><strong id="ctStudyDate">—</strong></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ===================== RESULTS ===================== -->
+    <div class="two-col results-row executive-results" id="resultsRow" style="display:none;">
+      <section class="card">
+        <div class="card-head">
+          <div class="icon-badge pink">&#128202;</div>
+          <h3>3. MODEL ANALYSIS RESULTS</h3>
+        </div>
+        <div class="model-cards">
+          <div class="model-card pink">
+            <div class="model-icon">&#128203;</div>
+            <div class="model-name">Clinical Data Model</div>
+            <div class="model-score" id="clinicalScore">--</div>
+            <div class="model-score-label" id="clinicalScoreLabel">-- Risk Score</div>
+            <div class="progress-track"><div class="progress-fill pink" id="clinicalBar"></div></div>
+            <div class="model-desc">Risk probability based on clinical information</div>
+          </div>
+          <div class="model-card blue">
+            <div class="model-icon">&#129502;</div>
+            <div class="model-name">2D CT Analysis</div>
+            <div class="model-score" id="cnn2dScore">--</div>
+            <div class="model-score-label" id="cnn2dScoreLabel">-- Risk Score</div>
+            <div class="progress-track"><div class="progress-fill blue" id="cnn2dBar"></div></div>
+            <div class="model-desc">Risk probability based on 2D CT slice analysis</div>
+          </div>
+          <div class="model-card purple">
+            <div class="model-icon">&#11040;</div>
+            <div class="model-name">3D CT Analysis</div>
+            <div class="model-score" id="mil3dScore">--</div>
+            <div class="model-score-label" id="mil3dScoreLabel">-- Risk Score</div>
+            <div class="progress-track"><div class="progress-fill purple" id="mil3dBar"></div></div>
+            <div class="model-desc">Risk probability based on 3D CT volumetric analysis</div>
+          </div>
+          <div class="model-card teal" id="wholelungCard" style="display:none;">
+            <div class="model-icon">&#129514;</div>
+            <div class="model-name">Whole-Lung 3D</div>
+            <div class="model-score" id="wholelungScore">--</div>
+            <div class="model-score-label" id="wholelungScoreLabel">-- Risk Score</div>
+            <div class="progress-track"><div class="progress-fill teal" id="wholelungBar"></div></div>
+            <div class="model-desc">Pretrained-backbone whole-lung volumetric analysis</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card fusion-result-card">
+        <div class="card-head fusion-result-head">
+          <div class="icon-badge pink">&#128202;</div>
+          <div>
+            <h3>4. FINAL PREDICTION (FUSION RESULT)</h3>
+            <span class="fusion-final-badge">FINAL MODEL</span>
+          </div>
+        </div>
+        <div class="fusion-row">
+          <div class="fusion-left">
+            <div class="fusion-label">LUNG CANCER RISK</div>
+            <div class="fusion-risk-label" id="riskLabel">--</div>
+            <div class="confidence-badge" id="confidenceBadge" style="display:none;"></div>
+            <div class="recommendation">
+              <strong>Recommendation:</strong> <span id="recommendationText">Run an analysis to see a recommendation.</span>
+            </div>
+            <div class="report-ready-box" id="reportReadyBox" style="display:none; margin-top:14px;">
+              <strong>&#10003; Complete patient report ready</strong>
+              <span>Includes patient details, submitted clinical data, CT study information, representative CT views, all model scores, fusion result, model agreement, recommendation, and analysis provenance.</span>
+            </div>
+            <button class="btn btn-primary" id="downloadPdfBtn" style="display:none; margin-top:10px;">
+              &#128196; Download Complete Patient Report (PDF)
+            </button>
+          </div>
+          <div class="fusion-gauge" id="fusionGauge">
+            <div class="gauge-inner">
+              <div class="gauge-pct" id="gaugePct">--%</div>
+              <div class="gauge-caption">RISK SCORE</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="risk-spectrum-wrap" aria-label="Final fusion risk spectrum">
+          <div class="risk-spectrum">
+            <span class="risk-segment risk-tier0" style="width:30%"></span>
+            <span class="risk-segment risk-tier1" style="width:{{ '%.2f'|format(dashboard_active_threshold * 100 - 30) }}%"></span>
+            <span class="risk-segment risk-tier2" style="width:{{ '%.2f'|format(60 - dashboard_active_threshold * 100) }}%"></span>
+            <span class="risk-segment risk-tier3" style="width:40%"></span>
+            <span class="risk-marker" id="riskMarker" style="left:0%"></span>
+          </div>
+          <div class="risk-spectrum-labels risk-spectrum-labels-four">
+            <span>Not Detected</span><span>Suspicious</span><span>High Suspicion</span><span>Detected</span>
+          </div>
+        </div>
+
+        <div class="contribution">
+          <div class="contribution-title">Model Contribution (Fusion Weights)</div>
+          <div class="contribution-row">
+            <span>&#128203; Clinical Data Model</span>
+            <div class="progress-track small"><div class="progress-fill pink" style="width:{{ fusion_weight_clinical }}%"></div></div>
+            <span>{{ fusion_weight_clinical }}%</span>
+          </div>
+          <div class="contribution-row">
+            <span>&#129502; 2D CT Analysis</span>
+            <div class="progress-track small"><div class="progress-fill blue" style="width:{{ fusion_weight_cnn2d }}%"></div></div>
+            <span>{{ fusion_weight_cnn2d }}%</span>
+          </div>
+          <div class="contribution-row">
+            <span>&#11040; 3D CT Analysis</span>
+            <div class="progress-track small"><div class="progress-fill purple" style="width:{{ fusion_weight_mil3d }}%"></div></div>
+            <span>{{ fusion_weight_mil3d }}%</span>
+          </div>
+          <div class="contribution-row">
+            <span>&#129514; Whole-Lung 3D</span>
+            <div class="progress-track small"><div class="progress-fill teal" style="width:{{ fusion_weight_wholelung }}%"></div></div>
+            <span>{{ fusion_weight_wholelung }}%</span>
+          </div>
+          <div class="contribution-note">Weights derived from each branch's validated AUC (see project methodology log) — not equal averaging.</div>
+        </div>
+
+        <div class="research-use-notice">
+          <span aria-hidden="true">&#9432;</span> AI decision-support / research output — not a standalone diagnosis.
+        </div>
+      </section>
+    </div>
+
+    <!-- ===================== PATIENT ANALYSIS SUMMARY ===================== -->
+    <section class="card patient-analysis-summary" id="patientSummaryCard" style="display:none;">
+      <div class="patient-summary-head">
+        <div>
+          <span class="patient-summary-kicker">Completed analysis</span>
+          <h3>Patient Analysis Summary</h3>
+        </div>
+        <div class="patient-summary-final">
+          <span>Final Fusion Probability</span>
+          <strong id="summaryFinalProb">—</strong>
+        </div>
+      </div>
+
+      <div class="patient-summary-grid">
+        <div><span>Patient ID</span><strong id="summaryPatientId">—</strong></div>
+        <div><span>Patient Name</span><strong id="summaryPatientName">—</strong></div>
+        <div><span>Age</span><strong id="summaryAge">—</strong></div>
+        <div><span>Gender</span><strong id="summaryGender">—</strong></div>
+        <div><span>Current Smoker</span><strong id="summarySmoking">—</strong></div>
+        <div><span>Fusion Threshold</span><strong id="summaryThreshold">{{ '%.4f'|format(dashboard_active_threshold) }}</strong></div>
+        <div class="patient-summary-classification"><span>Final Classification</span><strong id="summaryClassification">—</strong></div>
+      </div>
+
+      <div class="patient-summary-lower">
+        <div class="branch-score-panel">
+          <div class="summary-panel-title">Individual Model Scores</div>
+          <div class="branch-score-grid">
+            <div class="branch-score branch-clinical"><span>Clinical</span><strong id="summaryClinical">—</strong></div>
+            <div class="branch-score branch-2d"><span>2D CT</span><strong id="summary2d">—</strong></div>
+            <div class="branch-score branch-3d"><span>3D MIL</span><strong id="summary3d">—</strong></div>
+            <div class="branch-score branch-whole"><span>Whole Lung</span><strong id="summaryWhole">—</strong></div>
+          </div>
+        </div>
+
+        <div class="model-agreement-panel">
+          <div class="model-agreement-head">
+            <div>
+              <div class="summary-panel-title">Model Agreement</div>
+              <span>Probability spread</span>
+            </div>
+            <strong id="agreementSpread">—</strong>
+          </div>
+          <div class="agreement-scale" id="agreementScale" aria-label="Branch probability positions">
+            <span class="agreement-axis"></span>
+            <i class="agreement-dot agreement-clinical" id="agreementClinical" title="Clinical"></i>
+            <i class="agreement-dot agreement-2d" id="agreement2d" title="2D CT"></i>
+            <i class="agreement-dot agreement-3d" id="agreement3d" title="3D MIL"></i>
+            <i class="agreement-dot agreement-whole" id="agreementWhole" title="Whole Lung"></i>
+          </div>
+          <div class="agreement-range"><span>0%</span><span id="agreementRange">—</span><span>100%</span></div>
+        </div>
+      </div>
+
+      <div class="analysis-provenance" id="analysisProvenance">
+        <div><span>Analysis time</span><strong id="provTimestamp">—</strong></div>
+        <div><span>Pipeline</span><strong id="provPipeline">—</strong></div>
+        <div><span>Model configuration</span><strong id="provModelConfig">—</strong></div>
+        <div><span>Fusion weights</span><strong id="provWeights">—</strong></div>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <!-- ===================== RECENT PATIENTS ===================== -->
+      <section class="card">
+        <h3 class="section-title">Recent Patients</h3>
+        <table class="patients-table">
+          <thead><tr><th>Patient ID</th><th>Name</th><th>Date</th><th>Risk Score</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for p in patients[:5] %}
+            <tr>
+              <td>{{ p.patient_id }}</td><td>{{ p.patient_name }}</td><td>{{ p.date }}</td>
+              <td>{{ p.risk_score }}%</td>
+              <td><span class="status-pill tier{{ p.risk_tier if p.risk_tier is defined else (3 if p.status == 'High Risk' else (2 if 'Moderate' in p.status or 'Suspicion' in p.status else (1 if 'Suspicious' in p.status else 0))) }}">{{ p.status }}</span></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="empty-row">No patients analyzed yet on this machine.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <a class="view-all-link" href="/results">View All Patients &#8594;</a>
+      </section>
+
+      <!-- ===================== QUICK ACTIONS + STATUS ===================== -->
+      <section class="card">
+        <h3 class="section-title">Quick Actions</h3>
+        <div class="quick-actions">
+          <button class="btn btn-primary full" id="qaNewPatient">&#10133; New Patient</button>
+          <button class="btn btn-outline full" id="qaUploadCt">&#8593; Upload CT Images</button>
+          <button class="btn btn-outline full" id="qaProjectAnalysis">&#128202; Project Analysis</button>
+          <button class="btn btn-outline full" id="qaHistory">&#8635; Analysis History</button>
+        </div>
+
+        <h3 class="section-title" style="margin-top:22px;">AI Model Status</h3>
+        <div class="status-list">
+          <div class="status-item {{ 'ok' if status.clinical else 'bad' }}">
+            {% if status.clinical %}&#9989;{% else %}&#10060;{% endif %} Clinical Model
+          </div>
+          <div class="status-item {{ 'ok' if status.cnn2d else 'bad' }}">
+            {% if status.cnn2d %}&#9989;{% else %}&#10060;{% endif %} 2D CT Model
+          </div>
+          <div class="status-item {{ 'ok' if status.mil3d else 'bad' }}">
+            {% if status.mil3d %}&#9989;{% else %}&#10060;{% endif %} 3D CT Model
+          </div>
+          <div class="status-item {{ 'ok' if status.wholelung else 'bad' }}">
+            {% if status.wholelung %}&#9989;{% else %}&#10060;{% endif %} Whole-Lung 3D Model
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="analysis-readiness" id="analysisReadiness" data-ready-models="{{ dashboard_ready_models }}" data-total-models="{{ dashboard_total_models }}">
+      <div class="readiness-title">Analysis Readiness <span id="readinessOverall">Waiting for inputs</span></div>
+      <div class="readiness-items">
+        <div class="readiness-item" id="readinessClinical"><span class="readiness-dot"></span><div><span>Clinical Data</span><strong id="readinessClinicalText">Add age</strong></div></div>
+        <div class="readiness-item" id="readinessCt"><span class="readiness-dot"></span><div><span>CT Study</span><strong id="readinessCtText">No CT selected</strong></div></div>
+        <div class="readiness-item {{ 'is-ready' if dashboard_ready_models == dashboard_total_models else '' }}" id="readinessModels"><span class="readiness-dot"></span><div><span>AI Models</span><strong>{{ dashboard_ready_models }} / {{ dashboard_total_models }} ready</strong></div></div>
+      </div>
+    </section>
+
+    <button class="btn btn-primary analyze-btn" id="analyzeBtn">&#128269; Analyze</button>
+    <div id="errorBox" class="error-box" style="display:none;"></div>
+
+    <div id="slicesModal" class="slices-modal" style="display:none;">
+      <div class="slices-modal-backdrop" id="slicesModalBackdrop"></div>
+      <div class="slices-modal-content">
+        <div class="slices-modal-head">
+          <h3>All Slices Used by the 2D CT Model</h3>
+          <button class="slices-modal-close" id="slicesModalClose">&#10005;</button>
+        </div>
+        <div class="slices-grid" id="slicesGrid"></div>
+      </div>
+    </div>
+
+    <footer class="dash-footer">
+      <div class="dash-footer-title">Lung Cancer AI Analysis System</div>
+      <div class="dash-footer-line">Developed by <span class="dash-footer-name">Abdelrhman Mohammed Ibrahim</span></div>
+      <div class="dash-footer-line">Supervised by <span class="dash-footer-name">Arya Raj</span> &amp; <span class="dash-footer-name">Ruchita R. Patil</span></div>
+      <div class="dash-footer-line">Senior Academic Supervisor: <span class="dash-footer-name">Dr. Shwetha V.</span></div>
+    </footer>
+
+{% endblock %}
+{% block scripts %}<script src="/static/app.js"></script>{% endblock %}

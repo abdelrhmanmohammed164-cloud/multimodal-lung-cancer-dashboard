@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h3 class="section-title">Data not found</h3>
+  <div class="error-box" style="display:block;">
+    Missing: <code>{{ missing_file }}</code><br>
+    Expected at: <code>{{ expected_path }}</code><br><br>
+    {{ instructions }}
+  </div>
+</section>
+{% endblock %}

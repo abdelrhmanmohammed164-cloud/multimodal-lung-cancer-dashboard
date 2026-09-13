@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="card">
+  <h3 class="section-title">Research Question</h3>
+  <p class="card-sub" style="margin-bottom:14px;">
+    Can combining clinical data with CT imaging (2D and 3D analysis) produce a lung cancer
+    risk model that outperforms any single data source alone?
+  </p>
+  <p style="font-size:13px; color:var(--text-muted); line-height:1.7;">
+    This system was built on the National Lung Screening Trial (NLST) cohort (~1,638 patients,
+    T0 baseline visit only). The core hypothesis: a fusion of a clinical-features model, a 2D CT
+    slice-based model, and a 3D CT volumetric model can achieve higher diagnostic accuracy than
+    any one branch working alone — while remaining realistic for actual clinical deployment
+    (a single baseline visit, not multi-timepoint follow-up data).
+  </p>
+</section>
+
+<div class="two-col">
+  <section class="card">
+    <h3 class="section-title">Methodology constraints</h3>
+    <ul class="guide-list">
+      <li><strong>T0-only:</strong> no post-baseline or follow-up-scan information is used anywhere,
+        even where it might improve numbers — this keeps the model realistic for a patient being
+        screened for the first time.</li>
+      <li><strong>Binary detection, not staging:</strong> the target is presence/absence of lung
+        cancer, not tumor stage.</li>
+      <li><strong>Independent, isolated branches:</strong> clinical, 2D CT, and 3D CT models are
+        trained and run completely separately, then combined via a validated weighted fusion —
+        not end-to-end joint training.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h3 class="section-title">Success criterion</h3>
+    <p style="font-size:13px; color:var(--text-muted); line-height:1.7;">
+      The fused (clinical + imaging) system must beat the clinical branch alone on the same
+      cross-validated cohort. See <a href="/performance" style="color:var(--pink);">Model
+      Performance</a> for the validated result confirming this criterion was met
+      (bootstrap 95% CI entirely above zero).
+    </p>
+  </section>
+</div>
+
+<section class="card">
+  <h3 class="section-title">Full methodology &amp; every approach tried</h3>
+  <p class="card-sub">
+    For the selected dataset-level exploratory analyses and AI explainability views, see
+    <a href="/project-analysis" style="color:var(--pink);">Project Analysis</a>. Detailed four-model
+    evaluation remains in <a href="/performance" style="color:var(--pink);">Model Performance</a>.
+  </p>
+</section>
+
+{% endblock %}

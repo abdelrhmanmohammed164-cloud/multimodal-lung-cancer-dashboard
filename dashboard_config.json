@@ -1,0 +1,13 @@
+{
+  "clinical_models_dir": "clinical_models_for_inference",
+  "cnn2d_models_dir": "ct_model_outputs",
+  "mil3d_models_dir": "ct_cnn_3d_mil_outputs",
+  "wholelung_models_dir": "ct_wholelung_pretrained_outputs",
+  "project_results_dir": "project_results",
+  "eda_outputs_dir": "/Volumes/Apple/images_organized/Analysis/eda_outputs",
+  "doctor_name": "Dr. Shwetha",
+  "doctor_specialty": "Pulmonologist",
+  "doctor_title": "Associate Professor",
+  "doctor_photo": "doctor_photo.jpg",
+  "device": "auto"
+}

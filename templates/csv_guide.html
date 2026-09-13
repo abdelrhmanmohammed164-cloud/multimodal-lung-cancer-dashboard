@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="guide-hero-grid">
+  <article class="card guide-t0-card">
+    <div class="guide-card-icon">T0</div>
+    <div>
+      <div class="guide-eyebrow">BASELINE VISIT</div>
+      <h3 class="section-title">What does "T0" mean?</h3>
+      <p class="guide-t0-copy">
+        <strong>T0</strong> is the patient's <strong>baseline screening visit</strong> —
+        their very first CT scan and clinical assessment, before any follow-up. Every feature in this
+        system (all {{ n_features }} clinical fields, plus the CT scan itself) comes only from this
+        single visit. No later follow-up scans, later diagnoses, or growth-over-time information is
+        used anywhere — a real new patient being screened for the first time only ever has T0 data
+        available, so the model is built to work with exactly that, and nothing more.
+      </p>
+    </div>
+  </article>
+
+
+</section>
+
+<section class="card guide-feature-reference-card">
+  <div class="guide-reference-head">
+    <div>
+      <div class="guide-eyebrow">CLINICAL INPUT REFERENCE</div>
+      <h3 class="section-title">Required Features ({{ n_features }} total)</h3>
+      <p class="card-sub">Grouped by category. To submit a patient via CSV, your file needs exactly these {{ n_features }} columns (any order, exact names).</p>
+    </div>
+    <div class="guide-reference-meta">
+      <div><strong>{{ n_features }}</strong><span>Required columns</span></div>
+      <div><strong>Exact</strong><span>Column names</span></div>
+      <div><strong>Numeric</strong><span>Input format</span></div>
+    </div>
+  </div>
+
+  <div class="guide-toolbar">
+    <div class="guide-search-wrap">
+      <span>⌕</span>
+      <input id="guideFieldSearch" type="search" placeholder="Search column name, description, or expected value..." autocomplete="off">
+    </div>
+    <div class="guide-group-jumps">
+      {% for group in guide_groups %}
+      <a href="#guide-group-{{ loop.index }}">{{ group.name }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="guide-groups-stack" id="guideGroupsStack">
+    {% for group in guide_groups %}
+    <details class="guide-group-card" id="guide-group-{{ loop.index }}">
+      <summary>
+        <div class="guide-group-title-wrap">
+          <span class="guide-group-icon">
+            {% if 'Demographics' in group.name %}👤
+            {% elif 'Screening' in group.name %}📋
+            {% elif 'Abnormality' in group.name %}🫁
+            {% elif 'measurements' in group.name %}📏
+            {% elif 'margins' in group.name %}◈
+            {% elif 'attenuation' in group.name %}◐
+            {% elif 'location' in group.name %}⌖
+            {% else %}▦{% endif %}
+          </span>
+          <div>
+            <strong>{{ group.name }}</strong>
+            <span>{{ group.fields|length }} fields</span>
+          </div>
+        </div>
+        <span class="guide-chevron">⌄</span>
+      </summary>
+      <div class="guide-table-wrap">
+        <table class="patients-table guide-fields-table">
+          <thead><tr><th>Column name</th><th>Description</th><th>Expected value</th><th>Example</th></tr></thead>
+          <tbody>
+            {% for f in group.fields %}
+            <tr data-guide-row data-search="{{ (f.name ~ ' ' ~ f.desc ~ ' ' ~ f.expected)|lower }}">
+              <td><code>{{ f.name }}</code></td>
+              <td>{{ f.desc }}</td>
+              <td><span class="guide-expected-pill">{{ f.expected }}</span></td>
+              <td><span class="guide-example-value">{{ f.example }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="guide-bottom-grid">
+  <article class="card guide-example-card">
+    <div class="guide-eyebrow">CSV EXAMPLE</div>
+    <h3 class="section-title">Example valid row</h3>
+    <p class="card-sub">Header + one example row (all zeros — replace with real patient values):</p>
+    <div class="guide-code-wrap">
+      <button type="button" class="guide-copy-btn" id="copyGuideCsv">Copy</button>
+      <pre class="code-block" id="guideCsvExample">{{ example_csv_header }}
+{{ example_csv_row }}</pre>
+    </div>
+  </article>
+
+  <article class="card guide-preprocess-card">
+    <div class="guide-eyebrow">PIPELINE RULES</div>
+    <h3 class="section-title">How preprocessing works</h3>
+    <div class="guide-rule-grid">
+      <div><span>01</span><p>Missing values are imputed using the median from the training cohort (via the saved <code>clinical_imputer.pkl</code>).</p></div>
+      <div><span>02</span><p>All columns must be numeric — count/flag columns use <strong>0 = absent, 1 = present</strong>; codes (e.g. <code>scr_res0_*</code>) are one-hot flags per your NLST data dictionary.</p></div>
+      <div><span>03</span><p>Column order does not matter as long as names match exactly — the pipeline reorders them internally.</p></div>
+      <div><span>04</span><p>Do not include <code>pid</code> or <code>has_cancer</code> — those are excluded from the model's inputs.</p></div>
+    </div>
+  </article>
+</section>
+
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const search = document.getElementById('guideFieldSearch');
+  if (search) {
+    search.addEventListener('input', () => {
+      const q = search.value.trim().toLowerCase();
+      document.querySelectorAll('.guide-group-card').forEach(group => {
+        let visible = 0;
+        group.querySelectorAll('[data-guide-row]').forEach(row => {
+          const match = !q || row.dataset.search.includes(q);
+          row.style.display = match ? '' : 'none';
+          if (match) visible += 1;
+        });
+        group.style.display = visible ? '' : 'none';
+        if (q && visible) group.open = true;
+      });
+    });
+  }
+
+  const copyBtn = document.getElementById('copyGuideCsv');
+  const code = document.getElementById('guideCsvExample');
+  if (copyBtn && code && navigator.clipboard) {
+    copyBtn.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(code.innerText);
+      const old = copyBtn.textContent;
+      copyBtn.textContent = 'Copied';
+      setTimeout(() => copyBtn.textContent = old, 1200);
+    });
+  }
+})();
+</script>
+{% endblock %}

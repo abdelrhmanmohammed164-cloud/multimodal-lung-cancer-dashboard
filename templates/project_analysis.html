@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="card analysis-command-bar">
+  <div class="analysis-meta-row" aria-label="Dataset scope">
+    <div class="analysis-meta-pill"><strong>1,638</strong><span>Patients</span></div>
+    <div class="analysis-meta-pill"><strong>T0</strong><span>Baseline only</span></div>
+    <div class="analysis-meta-pill"><strong>3</strong><span>Analysis areas</span></div>
+  </div>
+
+  <div class="section-launch-copy">
+    <strong>Choose an analysis category</strong>
+    <span>Categories stay closed until you open one. Only one category is shown at a time.</span>
+  </div>
+</section>
+
+<section class="section-launch-grid analysis-launch-grid" aria-label="Project Analysis categories">
+  {% for section in sections %}
+  <button type="button" class="section-launch-card analysis-launch-card" data-open-analysis="{{ section.id }}" aria-controls="{{ section.id }}" aria-expanded="false">
+    <span class="section-launch-num">{{ "%02d"|format(loop.index) }}</span>
+    <span class="section-launch-title">{{ section.title }}</span>
+    <span class="section-launch-action">Open category <span aria-hidden="true">→</span></span>
+  </button>
+  {% endfor %}
+</section>
+
+{% for section in sections %}
+<section class="analysis-section collapsible-dashboard-section" id="{{ section.id }}" data-analysis-panel hidden>
+  <div class="analysis-section-head">
+    <div class="analysis-section-num">{{ "%02d"|format(loop.index) }}</div>
+    <div>
+      <div class="section-open-kicker">PROJECT ANALYSIS CATEGORY</div>
+      <h3 class="analysis-section-title">{{ section.title }}</h3>
+    </div>
+    <button type="button" class="panel-close-top" data-close-analysis aria-label="Close {{ section.title }}">×</button>
+  </div>
+
+  <div class="analysis-grid">
+    {% for g in section.graphs %}
+    <article class="card graph-card {{ 'full' if g.full }}">
+      <div class="graph-card-img-wrap">
+        {% if g.exists %}
+        <img src="/project-analysis/image/{{ g.file }}" alt="{{ g.title }}" loading="lazy">
+        {% else %}
+        <div class="graph-card-missing">
+          <strong>{{ g.file }}</strong><br>
+          Image not found in the configured analysis-output folder.
+        </div>
+        {% endif %}
+      </div>
+      <div class="graph-card-copy">
+        <h4>{{ g.title }}</h4>
+        <p>{{ g.description }}</p>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+
+  <div class="panel-footer-actions">
+    <button type="button" class="panel-close-btn" data-close-analysis>Close category</button>
+    <span>Close this category to return to the category selector.</span>
+  </div>
+</section>
+{% endfor %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const launchers = [...document.querySelectorAll('[data-open-analysis]')];
+  const panels = [...document.querySelectorAll('[data-analysis-panel]')];
+
+  const selector = document.querySelector('.analysis-launch-grid');
+
+  function jumpToSelectorBeforeCollapse() {
+    if (!selector) return;
+    const y = Math.max(0, selector.getBoundingClientRect().top + window.scrollY - 18);
+    const root = document.documentElement;
+    const previous = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+    window.scrollTo(0, y);
+    root.style.scrollBehavior = previous;
+  }
+
+  function closeAll(returnToSelector = false) {
+    // Important: move the viewport first, while the open panel still has height.
+    // Hiding a long panel before scrolling can leave the browser temporarily
+    // below the new document height, which creates the white/blank flash.
+    if (returnToSelector) jumpToSelectorBeforeCollapse();
+
+    panels.forEach(panel => {
+      panel.hidden = true;
+      panel.classList.remove('is-open');
+    });
+    launchers.forEach(btn => {
+      btn.classList.remove('is-active');
+      btn.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  function openPanel(id) {
+    closeAll(false);
+    const panel = document.getElementById(id);
+    const launcher = document.querySelector(`[data-open-analysis="${CSS.escape(id)}"]`);
+    if (!panel) return;
+    panel.hidden = false;
+    panel.classList.add('is-open');
+    if (launcher) {
+      launcher.classList.add('is-active');
+      launcher.setAttribute('aria-expanded', 'true');
+    }
+    requestAnimationFrame(() => panel.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
+
+  launchers.forEach(btn => btn.addEventListener('click', () => openPanel(btn.dataset.openAnalysis)));
+  document.querySelectorAll('[data-close-analysis]').forEach(btn => btn.addEventListener('click', () => closeAll(true)));
+
+  // If an old bookmark uses #category-id, honor it without making categories open by default.
+  if (location.hash) {
+    const id = location.hash.slice(1);
+    if (document.getElementById(id)?.hasAttribute('data-analysis-panel')) openPanel(id);
+  }
+})();
+</script>
+{% endblock %}

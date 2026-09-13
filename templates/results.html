@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <div>
+      <h3 class="section-title" style="margin:0;">Analysis Results — Patient History</h3>
+      <p class="card-sub" style="margin-top:4px;">Every patient analyzed on this machine, with full per-branch breakdown.</p>
+    </div>
+    {% if patients %}
+    <a class="btn btn-primary" href="/api/export-patients-excel" style="text-decoration:none; white-space:nowrap;">
+      &#128190; Export to Excel
+    </a>
+    {% endif %}
+  </div>
+
+  {% if patients %}
+  <table class="patients-table">
+    <thead><tr><th>Patient ID</th><th>Name</th><th>Date</th><th>Clinical</th><th>2D CT</th><th>3D CT</th><th>Whole-Lung</th><th>Final</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for p in patients %}
+      <tr>
+        <td>{{ p.patient_id }}</td><td>{{ p.patient_name }}</td><td>{{ p.date }}</td>
+        <td>{{ (p.clinical_prob * 100)|round(1) if p.clinical_prob is defined else '—' }}%</td>
+        <td>{{ (p.old_cnn_prob * 100)|round(1) if p.old_cnn_prob is defined else '—' }}%</td>
+        <td>{{ (p.mil_prob * 100)|round(1) if p.mil_prob is defined else '—' }}%</td>
+        <td>{{ (p.wholelung_prob * 100)|round(1) if p.wholelung_prob is defined and p.wholelung_prob is not none else 'n/a' }}%</td>
+        <td><strong>{{ p.risk_score }}%</strong></td>
+        <td><span class="status-pill tier{{ p.risk_tier if p.risk_tier is defined else (3 if p.status == 'High Risk' else (2 if 'Moderate' in p.status or 'Suspicion' in p.status else (1 if 'Suspicious' in p.status else 0))) }}">{{ p.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty-row">No patients analyzed yet on this machine. Run an analysis from the Dashboard.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

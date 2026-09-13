@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% macro fmt(v, digits=3) -%}
+  {% if v is number %}{{ ("%." ~ digits ~ "f")|format(v) }}{% else %}—{% endif %}
+{%- endmacro %}
+
+<section class="card perf-validation-banner perf-validation-banner-compact">
+  <div class="perf-validation-stats perf-validation-stats-wide">
+    <div><span>Original cohort</span><strong>{{ protocol.original_dataset_n }}</strong></div>
+    <div><span>Common eligible</span><strong>{{ protocol.common_eligible_n }}</strong></div>
+    <div><span>Threshold validation</span><strong>{{ protocol.validation_n }}</strong></div>
+    <div><span>Held-out evaluation</span><strong>{{ protocol.evaluation_n }}</strong></div>
+  </div>
+</section>
+
+<section class="model-control-center card">
+  <div class="model-control-copy">
+    <div>
+      <div class="perf-kicker">MODEL CONTROL CENTER</div>
+      <h3>Open one model, or select models to compare</h3>
+      <p>Detailed model reports stay closed until you choose one. Comparison is independent, so you can compare several models without opening all reports.</p>
+    </div>
+    <button type="button" class="compare-models-btn" id="compareModelsBtn" disabled>Compare selected <span id="compareCount">0</span></button>
+  </div>
+
+  <div class="model-launch-grid" aria-label="Model performance selector">
+    {% for model in models %}
+    <article class="model-launch-card {{ 'fusion-launch-card' if model.slug == 'fusion' else '' }}" data-model-launch-card="{{ model.slug }}">
+      <div class="model-launch-top">
+        <span class="section-launch-num">{{ "%02d"|format(loop.index) }}</span>
+        <label class="compare-check" title="Add {{ model.name }} to comparison">
+          <input type="checkbox" value="{{ model.slug }}" data-compare-model>
+          <span>Compare</span>
+        </label>
+      </div>
+      <h3>{{ model.name }}</h3>
+      <p>{{ model.technical_name }}</p>
+      <div class="model-launch-mini-metrics">
+        <span><small>ROC-AUC</small><strong>{{ fmt(model.metrics.get('ROC-AUC'), 3) }}</strong></span>
+        <span><small>Sensitivity</small><strong>{{ fmt(model.metrics.get('Sensitivity'), 3) }}</strong></span>
+        <span><small>Specificity</small><strong>{{ fmt(model.metrics.get('Specificity'), 3) }}</strong></span>
+      </div>
+      <button type="button" class="model-open-btn" data-open-model="{{ model.slug }}" aria-controls="{{ model.slug }}" aria-expanded="false">Open model report <span aria-hidden="true">→</span></button>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card model-compare-panel" id="modelComparePanel" hidden>
+  <div class="performance-detail-head">
+    <div>
+      <div class="perf-kicker">SIDE-BY-SIDE COMPARISON</div>
+      <h3>Selected Models</h3>
+    </div>
+    <button type="button" class="panel-close-top" id="closeCompareBtn" aria-label="Close model comparison">×</button>
+  </div>
+  <div class="compare-table-wrap">
+    <table class="model-compare-table">
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th>ROC-AUC</th>
+          <th>PR-AUC</th>
+          <th>Sensitivity</th>
+          <th>Specificity</th>
+          <th>Balanced Accuracy</th>
+          <th>F1</th>
+          <th>MCC</th>
+          <th>Brier</th>
+          <th>Threshold</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for model in models %}
+        <tr data-compare-row="{{ model.slug }}" hidden>
+          <td><strong>{{ model.name }}</strong><small>{{ model.technical_name }}</small></td>
+          <td>{{ fmt(model.metrics.get('ROC-AUC'), 3) }}</td>
+          <td>{{ fmt(model.metrics.get('PR-AUC'), 3) }}</td>
+          <td>{{ fmt(model.metrics.get('Sensitivity'), 3) }}</td>
+          <td>{{ fmt(model.metrics.get('Specificity'), 3) }}</td>
+          <td>{{ fmt(model.metrics.get('Balanced Accuracy'), 3) }}</td>
+          <td>{{ fmt(model.metrics.get('F1-score'), 3) }}</td>
+          <td>{{ fmt(model.metrics.get('MCC'), 3) }}</td>
+          <td>{{ fmt(model.metrics.get('Brier Score'), 3) }}</td>
+          <td>{{ '%.4f'|format(model.optimal_threshold) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="comparison-guidance">Use the same held-out evaluation metrics for a fair side-by-side comparison. Thresholds shown here were selected on the validation subset.</div>
+  <div class="panel-footer-actions">
+    <button type="button" class="panel-close-btn" id="closeCompareBtnBottom">Close comparison</button>
+  </div>
+</section>
+
+{% for model in models %}
+<section class="performance-model-section collapsible-dashboard-section {{ 'perf-fusion-section' if model.slug == 'fusion' else '' }}" id="{{ model.slug }}" data-model-panel hidden>
+  <div class="performance-model-head perf-model-head-expanded">
+    <div class="performance-model-num">{{ "%02d"|format(loop.index) }}</div>
+    <div class="perf-model-title-copy">
+      <div class="section-open-kicker">MODEL PERFORMANCE REPORT</div>
+      <h2>{{ model.name }}</h2>
+      <div class="performance-model-meta">
+        <span>{{ model.technical_name }}</span>
+        <span>{{ model.input }}</span>
+        <span>{{ model.n_patients }} common patients</span>
+      </div>
+    </div>
+    <div class="perf-threshold-hero">
+      <span>Optimal validation threshold</span>
+      <strong>{{ '%.4f'|format(model.optimal_threshold) }}</strong>
+      <small>Youden J {{ '%.3f'|format(model.threshold_selection.validation_youden_j) }}</small>
+    </div>
+    <button type="button" class="panel-close-top model-panel-close-top" data-close-model aria-label="Close {{ model.name }} report">×</button>
+  </div>
+
+  <div class="perf-key-metrics">
+    {% for metric in ['ROC-AUC','PR-AUC','Sensitivity','Specificity','Balanced Accuracy','F1-score','MCC'] %}
+    <div class="perf-key-metric">
+      <span>{{ metric }}</span>
+      <strong>{{ fmt(model.metrics.get(metric), 3) }}</strong>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="performance-plots-main perf-model-plots-v3">
+    <article class="card performance-plot-card perf-wide">
+      <img src="{{ url_for('static', filename='images/performance_models/' ~ model.images.roc_pr) }}" alt="{{ model.name }} ROC and precision recall curves">
+    </article>
+
+    <article class="card performance-plot-card">
+      <img src="{{ url_for('static', filename='images/performance_models/' ~ model.images.threshold) }}" alt="{{ model.name }} threshold validation">
+    </article>
+
+    <article class="card performance-plot-card">
+      <img src="{{ url_for('static', filename='images/performance_models/' ~ model.images.confusion) }}" alt="{{ model.name }} confusion matrix">
+    </article>
+
+    <article class="card performance-plot-card">
+      <img src="{{ url_for('static', filename='images/performance_models/' ~ model.images.calibration) }}" alt="{{ model.name }} calibration curve">
+    </article>
+
+    <article class="card performance-plot-card">
+      <img src="{{ url_for('static', filename='images/performance_models/' ~ model.images.stability) }}" alt="{{ model.name }} OOF evaluation stability">
+    </article>
+
+    {% if model.slug == 'fusion' and model.images.comparison %}
+    <article class="card performance-plot-card perf-wide">
+      <img src="{{ url_for('static', filename='images/performance_models/' ~ model.images.comparison) }}" alt="Fusion comparison with individual models">
+    </article>
+    {% endif %}
+  </div>
+
+  <section class="card performance-detail-card perf-statistics-card">
+    <div class="performance-detail-head">
+      <div>
+        <div class="perf-kicker">HELD-OUT EVALUATION</div>
+        <h3>Recalculated Statistical Performance</h3>
+      </div>
+      <span class="perf-threshold-badge">Threshold frozen at {{ '%.4f'|format(model.optimal_threshold) }}</span>
+    </div>
+
+    <div class="perf-stat-grid">
+      <div class="perf-stat-item"><span>ROC-AUC</span><strong>{{ fmt(model.metrics['ROC-AUC'],4) }}</strong></div>
+      <div class="perf-stat-item perf-stat-item-wide"><span>ROC-AUC 95% CI</span><strong>[{{ fmt(model.metrics['ROC-AUC 95% CI'][0],4) }}, {{ fmt(model.metrics['ROC-AUC 95% CI'][1],4) }}]</strong></div>
+      <div class="perf-stat-item"><span>PR-AUC</span><strong>{{ fmt(model.metrics['PR-AUC'],4) }}</strong></div>
+      <div class="perf-stat-item"><span>Accuracy</span><strong>{{ fmt(model.metrics['Accuracy'],4) }}</strong></div>
+      <div class="perf-stat-item"><span>Sensitivity / Recall</span><strong>{{ fmt(model.metrics['Sensitivity'],4) }}</strong></div>
+      <div class="perf-stat-item"><span>Specificity</span><strong>{{ fmt(model.metrics['Specificity'],4) }}</strong></div>
+      <div class="perf-stat-item"><span>Precision / PPV</span><strong>{{ fmt(model.metrics['Precision / PPV'],4) }}</strong></div>
+      <div class="perf-stat-item"><span>NPV</span><strong>{{ fmt(model.metrics['NPV'],4) }}</strong></div>
+      <div class="perf-stat-item"><span>F1-score</span><strong>{{ fmt(model.metrics['F1-score'],4) }}</strong></div>
+      <div class="perf-stat-item"><span>Balanced Accuracy</span><strong>{{ fmt(model.metrics['Balanced Accuracy'],4) }}</strong></div>
+      <div class="perf-stat-item"><span>MCC</span><strong>{{ fmt(model.metrics['MCC'],4) }}</strong></div>
+      <div class="perf-stat-item"><span>Cohen's Kappa</span><strong>{{ fmt(model.metrics["Cohen's Kappa"],4) }}</strong></div>
+      <div class="perf-stat-item"><span>Brier Score</span><strong>{{ fmt(model.metrics['Brier Score'],4) }}</strong></div>
+      <div class="perf-stat-item"><span>Optimal threshold</span><strong>{{ '%.4f'|format(model.optimal_threshold) }}</strong></div>
+      <div class="perf-stat-item"><span>True Negative</span><strong>{{ model.metrics.TN }}</strong></div>
+      <div class="perf-stat-item"><span>False Positive</span><strong>{{ model.metrics.FP }}</strong></div>
+      <div class="perf-stat-item"><span>False Negative</span><strong>{{ model.metrics.FN }}</strong></div>
+      <div class="perf-stat-item"><span>True Positive</span><strong>{{ model.metrics.TP }}</strong></div>
+    </div>
+  </section>
+
+  <section class="card perf-validation-analysis-card">
+    <div class="perf-validation-analysis-head">
+      <div class="perf-kicker">VALIDATION ANALYSIS</div>
+      <span class="perf-threshold-badge muted">{{ model.n_patients }} common patients</span>
+    </div>
+    <div class="perf-validation-analysis-grid">
+      <div><span>Validation Sensitivity</span><strong>{{ fmt(model.threshold_selection.validation_sensitivity,3) }}</strong></div>
+      <div><span>Validation Specificity</span><strong>{{ fmt(model.threshold_selection.validation_specificity,3) }}</strong></div>
+      <div><span>Validation Balanced Accuracy</span><strong>{{ fmt(model.threshold_selection.validation_balanced_accuracy,3) }}</strong></div>
+      <div><span>Validation Youden J</span><strong>{{ fmt(model.threshold_selection.validation_youden_j,3) }}</strong></div>
+      <div><span>OOF Stability AUC</span><strong>{{ fmt(model.oof_stability_mean,3) }} ± {{ fmt(model.oof_stability_std,3) }}</strong></div>
+      <div><span>Evaluation AUC CI width</span><strong>{{ fmt(model.metrics['ROC-AUC 95% CI'][1] - model.metrics['ROC-AUC 95% CI'][0],3) }}</strong></div>
+      <div><span>TP / TN</span><strong>{{ model.metrics.TP }} / {{ model.metrics.TN }}</strong></div>
+      <div><span>FP / FN</span><strong>{{ model.metrics.FP }} / {{ model.metrics.FN }}</strong></div>
+    </div>
+
+    {% if model.slug == 'fusion' %}
+    <div class="perf-fusion-weights perf-fusion-weights-compact">
+      <span>Current Fusion weights</span>
+      <div>Clinical 40%</div><div>2D 20%</div><div>3D-MIL 30%</div><div>Whole Lung 10%</div>
+    </div>
+    {% endif %}
+  </section>
+
+  <div class="panel-footer-actions model-panel-footer">
+    <button type="button" class="panel-close-btn" data-close-model>Close model report</button>
+    <button type="button" class="panel-secondary-btn" data-add-current-compare="{{ model.slug }}">Add this model to comparison</button>
+    <span>Close this report to return to the model selector.</span>
+  </div>
+</section>
+{% endfor %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const openButtons = [...document.querySelectorAll('[data-open-model]')];
+  const panels = [...document.querySelectorAll('[data-model-panel]')];
+  const compareChecks = [...document.querySelectorAll('[data-compare-model]')];
+  const compareBtn = document.getElementById('compareModelsBtn');
+  const compareCount = document.getElementById('compareCount');
+  const comparePanel = document.getElementById('modelComparePanel');
+  const compareRows = [...document.querySelectorAll('[data-compare-row]')];
+  const selector = document.querySelector('.model-control-center');
+
+  function jumpToSelectorBeforeCollapse() {
+    if (!selector) return;
+    const y = Math.max(0, selector.getBoundingClientRect().top + window.scrollY - 18);
+    const root = document.documentElement;
+    const previous = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+    window.scrollTo(0, y);
+    root.style.scrollBehavior = previous;
+  }
+
+  function closeModelPanels(returnToSelector = false) {
+    // Return first, then collapse. This avoids a blank/white frame when a long
+    // report disappears while the viewport is still near its bottom.
+    if (returnToSelector) jumpToSelectorBeforeCollapse();
+
+    panels.forEach(panel => {
+      panel.hidden = true;
+      panel.classList.remove('is-open');
+    });
+    openButtons.forEach(btn => {
+      btn.setAttribute('aria-expanded', 'false');
+      btn.closest('.model-launch-card')?.classList.remove('is-active');
+    });
+  }
+
+  function openModel(slug) {
+    closeModelPanels(false);
+    const panel = document.getElementById(slug);
+    const button = document.querySelector(`[data-open-model="${CSS.escape(slug)}"]`);
+    if (!panel) return;
+    panel.hidden = false;
+    panel.classList.add('is-open');
+    if (button) {
+      button.setAttribute('aria-expanded', 'true');
+      button.closest('.model-launch-card')?.classList.add('is-active');
+    }
+    requestAnimationFrame(() => panel.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
+
+  function selectedSlugs() {
+    return compareChecks.filter(c => c.checked).map(c => c.value);
+  }
+
+  function syncCompareControls() {
+    const selected = selectedSlugs();
+    compareCount.textContent = selected.length;
+    compareBtn.disabled = selected.length < 2;
+    compareBtn.classList.toggle('is-ready', selected.length >= 2);
+    document.querySelectorAll('[data-model-launch-card]').forEach(card => {
+      card.classList.toggle('is-selected-for-compare', selected.includes(card.dataset.modelLaunchCard));
+    });
+  }
+
+  function showComparison() {
+    const selected = selectedSlugs();
+    if (selected.length < 2) return;
+    compareRows.forEach(row => row.hidden = !selected.includes(row.dataset.compareRow));
+    comparePanel.hidden = false;
+    comparePanel.classList.add('is-open');
+    requestAnimationFrame(() => comparePanel.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
+
+  function closeComparison(returnToSelector = false) {
+    if (returnToSelector) jumpToSelectorBeforeCollapse();
+    comparePanel.hidden = true;
+    comparePanel.classList.remove('is-open');
+  }
+
+  openButtons.forEach(btn => btn.addEventListener('click', () => openModel(btn.dataset.openModel)));
+  document.querySelectorAll('[data-close-model]').forEach(btn => btn.addEventListener('click', () => closeModelPanels(true)));
+  compareChecks.forEach(check => check.addEventListener('change', syncCompareControls));
+  compareBtn.addEventListener('click', showComparison);
+  document.getElementById('closeCompareBtn')?.addEventListener('click', () => closeComparison(true));
+  document.getElementById('closeCompareBtnBottom')?.addEventListener('click', () => closeComparison(true));
+
+  document.querySelectorAll('[data-add-current-compare]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const slug = btn.dataset.addCurrentCompare;
+      const checkbox = document.querySelector(`[data-compare-model][value="${CSS.escape(slug)}"]`);
+      if (checkbox) checkbox.checked = true;
+      syncCompareControls();
+      selector?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  // Preserve old direct links such as /performance#fusion without opening everything.
+  if (location.hash) {
+    const slug = location.hash.slice(1);
+    if (document.getElementById(slug)?.hasAttribute('data-model-panel')) openModel(slug);
+  }
+
+  syncCompareControls();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% for section in sections %}
+<section class="analysis-section">
+  <div class="analysis-section-head">
+    <div class="analysis-section-num">{{ loop.index }}</div>
+    <div>
+      <h3 class="analysis-section-title">{{ section.title }}</h3>
+      <p class="analysis-section-desc">{{ section.subtitle }}</p>
+    </div>
+  </div>
+
+  <div class="analysis-grid">
+    {% for g in section.graphs %}
+    <div class="card graph-card {{ 'full' if g.full }}">
+      <div class="graph-card-img-wrap">
+        {% if g.exists %}
+        <img src="/project-analysis/image/{{ g.file }}" alt="{{ g.title }}" loading="lazy">
+        {% else %}
+        <div class="graph-card-missing">Not generated yet — run Data_analysis.py</div>
+        {% endif %}
+      </div>
+      <h4>{{ g.title }}</h4>
+      <p>{{ g.caption }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+{% endblock %}

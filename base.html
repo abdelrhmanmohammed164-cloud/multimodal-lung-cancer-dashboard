@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lung Cancer AI Analysis Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">
+        {% if doctor_photo_url %}<img src="{{ doctor_photo_url }}" class="brand-icon-img">{% else %}&#129502;{% endif %}
+      </div>
+      <div>
+        <div class="brand-title">LUNG CANCER</div>
+        <div class="brand-sub">AI ANALYSIS SYSTEM</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a class="nav-item {{ 'active' if active_page == 'dashboard' }}" href="/">&#127968; Dashboard</a>
+      <a class="nav-item {{ 'active' if active_page == 'project_analysis' }}" href="/project-analysis">&#128202; Project Analysis</a>
+      <a class="nav-item {{ 'active' if active_page == 'performance' }}" href="/performance">&#128200; Model Performance</a>
+      <a class="nav-item {{ 'active' if active_page == 'csv_guide' }}" href="/csv-guide">&#128221; Guide</a>
+      <a class="nav-item {{ 'active' if active_page == 'team' }}" href="/team">&#128101; Project Team</a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="quote">"Early detection saves lives."</div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <header class="topbar">
+      <div>
+        <h1>{{ page_title }}</h1>
+        <p class="subtitle">{{ page_subtitle }}</p>
+      </div>
+      <div class="doctor-box">
+        <div class="bell">&#128276;</div>
+        <div class="avatar">
+          {% if doctor_photo_url %}<img src="{{ doctor_photo_url }}" class="avatar-img">{% else %}&#128100;{% endif %}
+        </div>
+        <div>
+          <div class="doctor-name">{{ doctor_name }}</div>
+          <div class="doctor-role">{{ doctor_title }}</div>
+        </div>
+      </div>
+    </header>
+
+    {% block content %}{% endblock %}
+
+  </main>
+</div>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

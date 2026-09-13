@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# CatBoost training cache
+catboost_info/
+
+# Model outputs / weights (too large for git, excluded by design)
+ct_model_outputs/
+ct_cnn_3d_mil_outputs/
+ct_wholelung_pretrained_outputs/
+
+# Real patient-level logs and drafts (contain NLST participant data - not for redistribution)
+clinical_drafts.json
+patients_log.json
+dashboard_config.json.save
+
+# Personal photos of the project team
+static/images/team/
+
+# OS
+.DS_Store
+._*
+
+# Per-participant model outputs (contain real NLST patient IDs + outcomes - not for redistribution)
+project_results/
