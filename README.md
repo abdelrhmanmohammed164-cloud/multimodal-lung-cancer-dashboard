@@ -32,7 +32,3 @@ python app.py
 ```
 
 To run inference end to end, you'll also need the model weight directories and `clinical_models_for_inference/` in place locally (not included here) and pointed to from `dashboard_config.json`.
-
-## Live demo (clinical branch only)
-
-The `demo/` folder holds a small, self-contained Flask app that runs just the clinical branch (CatBoost + XGBoost + Logistic Regression) and is light enough to deploy on a free hosting tier, so it can be tried from a browser without cloning anything. The 2D CT, 3D-MIL, and whole-lung branches aren't part of it, since their model weights are far too large for free hosting. See `demo/README.md` for what it includes and how to deploy it.
