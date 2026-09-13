@@ -24,6 +24,10 @@ This repository holds the dashboard's application code. A few things are deliber
 
 The methodology, validation protocol, and results behind this dashboard are described in the accompanying manuscript, *Multimodal Lung Cancer Risk Prediction from Clinical and CT Data*. The underlying dataset is NLST, accessed through [The Cancer Imaging Archive (TCIA) NLST collection](https://www.cancerimagingarchive.net/collection/nlst/).
 
+## Quick download
+
+Grab [`dashboard.zip`](dashboard.zip) from this repository for all the files above in a single archive — no `git clone` needed. Unzip it and follow the setup steps below.
+
 ## Setup
 
 ```bash
